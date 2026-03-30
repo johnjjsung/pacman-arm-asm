@@ -1,9 +1,7 @@
+extern void lab7(void);
 
 
-/**
- * main.c
- */
 int main(void)
 {
-	return 0;
+	lab7();
 }
