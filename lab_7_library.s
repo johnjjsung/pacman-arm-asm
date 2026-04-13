@@ -17,6 +17,7 @@
 	.global line_break
 	.global gpio_interrupt_init
 	.global uart_interrupt_init
+	.global timer_interrupt_init
 ;	.global simple_read_character
 	.global lookup_table
 
@@ -685,6 +686,76 @@ uart_interrupt_init:
 
 		POP {r4-r12, lr}
 		MOV pc, lr
+
+
+
+timer_interrupt_init:
+		PUSH {r4-r12, lr}
+
+		mov  r0, #0xE604		; Connect clock to Timer 0
+		movt r0, #0x400F
+		ldr r1, [r0]
+		orr r1, r1, #1
+		str r1, [r0]
+
+		mov  r0, #0xEA04		; Wait for Timer 0 to be ready
+		movt r0, #0x400F
+wait_timer_clock:
+		ldr r1, [r0]
+		tst r1, #1		; If bit 0 is 0, keep looping
+		beq wait_timer_clock
+
+		mov  r0, #0x000C		; Disable Timer via GPTMCTL
+		movt r0, #0x4003
+		ldr r1, [r0]
+		bic r1, r1, #1
+		str r1, [r0]
+
+		mov  r0, #0x0000		; Put Timer in 32-bit mode via GPTMCFG
+		movt r0, #0x4003
+		ldr r1, [r0]
+		mov r4, #7		; Mask for bits 0-2
+		bic r1, r1, r4
+		str r1, [r0]
+
+		mov  r0, #0x0004		; Put Timer into Periodic Mode via GPTMTAMR
+		movt r0, #0x4003
+		ldr r1, [r0]
+		orr r1, r1, #2		; Set bit 1 to 1
+		bic r1, r1, #1		; Clear bit 0
+		str r1, [r0]
+
+		mov  r0, #0x0028		; Setup interval period via GPTMTAILR
+		movt r0, #0x4003
+		mov  r1, #0x003D		; 4,000,000 in hex. 0.25 second period
+		movt r1, #0x0900
+		str r1, [r0]
+
+		mov  r0, #0x0018		; Enable timer to interrupt processor via GPTMIMR
+		movt r0, #0x4003
+		ldr r1, [r0]
+		orr r1, r1, #1
+		str r1, [r0]
+
+		mov  r0, #0xE100		; Configure processor to allow timer to interrupt processor
+		movt r0, #0xE000
+		ldr r1, [r0]
+		mov  r4, #0x0000
+		movt r4, #0x0008		; Mask for bit 19
+		orr r1, r1, r4
+		str r1, [r0]
+
+		mov  r0, #0x000C		; Enable timer via GPTMCTL
+		movt r0, #0x4003
+		ldr r1, [r0]
+		orr r1, r1, #1
+		str r1, [r0]
+
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
 
 ;simple_read_character:
 ;		PUSH {r4-r12, lr}
