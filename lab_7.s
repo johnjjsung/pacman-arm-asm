@@ -302,9 +302,8 @@ pacman_no_rightwrap:
 		bge exit_pacman_wrap
 		mov r1, #28
 		b exit_pacman_wrap
-
-
 exit_pacman_wrap:
+
 		; Store final pacman position
 		strb r0, [r2]
 		strb r1, [r2, #1]
@@ -374,6 +373,22 @@ move_oneghost:
 		; Update ghost position based on direction
 		add r0, r5, r7
 		add r1, r6, r8
+
+		; Wrap-around logic
+		; If beyond right boundary, set column to 1
+		cmp r1, #28
+		ble ghost_no_rightwrap
+		mov r1, #1
+		b exit_ghost_wrap
+		; If not beyond right boundary, check left boundary
+ghost_no_rightwrap:
+		cmp r1, #1
+		bge exit_ghost_wrap
+		mov r1, #28
+		b exit_ghost_wrap
+exit_ghost_wrap:
+
+		; Store final ghost position
 		strb r0, [r4]
 		strb r1, [r4, #1]
 
