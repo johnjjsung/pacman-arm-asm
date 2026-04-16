@@ -4,7 +4,7 @@
 	.global ansi_yellow
 	.global ansi_red
 	.global ansi_orange
-	.global ansi_blue
+	.global ansi_cyan
 	.global ansi_pink
 	.global cursor_pos
 	.global pacman_string
@@ -23,8 +23,9 @@ ansi_bold:		.string 0x1B, "[1m", 0
 ansi_yellow:	.string 0x1B, "[38;5;11m", 0
 ansi_red:		.string 0x1B, "[38;5;9m", 0
 ansi_orange:	.string 0x1B, "[38;5;202m", 0
-ansi_blue:		.string 0x1B, "[38;5;25m", 0
+ansi_cyan:		.string 0x1B, "[38;5;25m", 0
 ansi_pink:		.string 0x1B, "[38;5;207m", 0
+ansi_blue:		.string 0x1B, "[38;5;12m", 0
 
 ; ANSI escape sequence for cursor position
 cursor_pos:		.string 0x1B, "[123;456H", 0
@@ -33,8 +34,9 @@ cursor_pos:		.string 0x1B, "[123;456H", 0
 pacman_string:	.string 0x10, 0x11, '<', 0
 blinky_string:	.string 0x10, 0x12, 'A', 0	; red ghost
 clyde_string:	.string 0x10, 0x13, 'A', 0	; orange ghost
-inky_string:	.string 0x10, 0x14, 'A', 0	; blue ghost
+inky_string:	.string 0x10, 0x14, 'A', 0	; cyan ghost
 pinky_string:	.string 0x10, 0x15, 'A', 0	; pink ghost
+scared_string:	.string 0x10, 0x16, 'W', 0	; scared ghosts
 
 
 ; Lookup table that references ANSI escape sequences
@@ -43,29 +45,37 @@ lookup_table:
 		.word ansi_yellow
 		.word ansi_red
 		.word ansi_orange
-		.word ansi_blue
+		.word ansi_cyan
 		.word ansi_pink
+		.word ansi_blue
 
 
 pacman_pos:		.byte 10, 4		; Pacman position in line, column format
 pacman_dir:		.byte 0, 1		; Direction for pacman movement in line, column format to make cursor movement logic cleaner.
 
 ; Positions and directions for ghosts
-blinky_pos:		.byte 11, 4
-blinky_dir:		.byte 0, 1
+blinky_pos:			.byte 11, 4
+blinky_dir:			.byte 0, 1
 
-clyde_pos:		.byte 12, 4
-clyde_dir:		.byte 0, 1
+clyde_pos:			.byte 12, 4
+clyde_dir:			.byte 0, 1
 
-inky_pos:		.byte 13, 4
-inky_dir:		.byte 0, 1
+inky_pos:			.byte 13, 4
+inky_dir:			.byte 0, 1
 
-pinky_pos:		.byte 14, 4
-pinky_dir:		.byte 0, 1
+pinky_pos:			.byte 14, 4
+pinky_dir:			.byte 0, 1
 
-; How many lives player has left
-lives:			.byte 4
-is_game_over:	.byte 0
+; Coordinates for where each ghost will go when eaten by pacman
+blinky_spawn:		.byte 15, 12
+clyde_spawn:		.byte 15, 13
+inky_spawn:			.byte 15, 16
+pinky_spawn:		.byte 15, 17
+
+
+lives:				.byte 4
+is_game_over:		.byte 0
+power_pellet_time:	.byte 0		; Time left until power pellet wears off in number of game ticks(not seconds)
 
 
 	.text
@@ -105,9 +115,16 @@ ptr_to_inky_dir:			.word inky_dir
 ptr_to_pinky_string:		.word pinky_string
 ptr_to_pinky_pos:			.word pinky_pos
 ptr_to_pinky_dir:			.word pinky_dir
+ptr_to_scared_string:		.word scared_string
+
+ptr_to_blinky_spawn:		.word blinky_spawn
+ptr_to_clyde_spawn:			.word clyde_spawn
+ptr_to_inky_spawn:			.word inky_spawn
+ptr_to_pinky_spawn:			.word pinky_spawn
 
 ptr_to_lives:				.word lives
 ptr_to_is_game_over:		.word is_game_over
+ptr_to_power_pellet_time:	.word power_pellet_time
 
 
 ; Offset used for indexing in lookup table
@@ -115,7 +132,7 @@ BOLD:		.equ 0x10
 YELLOW:		.equ 0x11
 RED:		.equ 0x12
 ORANGE:		.equ 0x13
-BLUE:		.equ 0x14
+cyan:		.equ 0x14
 PINK:		.equ 0x15
 
 
@@ -341,7 +358,15 @@ check_ghost_coll:
 		bne blinky_nocoll
 		cmp r5, r2
 		bne blinky_nocoll
-		bl pacman_dead		; Pacman position = blinky position
+		ldr r6, ptr_to_power_pellet_time	; Check if power pellet is active
+		ldrb r6, [r6]
+		cmp r6, #0			; If power pellet is not active, pacman dead. Otherwise ghost eaten
+		beq normal_ghost_coll	; Pacman position = blinky position
+		ldr r0, ptr_to_blinky_pos		; Pass pos, spawn, dir to ghost_eaten
+		ldr r1, ptr_to_blinky_spawn
+		ldr r2, ptr_to_blinky_dir
+		bl ghost_eaten
+		b exit_check_ghost_coll
 blinky_nocoll:				; No collision with blinky
 		ldr r0, ptr_to_clyde_pos
 		ldrb r1, [r0]		; r1 = clyde line pos
@@ -350,7 +375,15 @@ blinky_nocoll:				; No collision with blinky
 		bne clyde_nocoll
 		cmp r5, r2
 		bne clyde_nocoll
-		bl pacman_dead		; Pacman position = clyde position
+		ldr r6, ptr_to_power_pellet_time	; Check if power pellet is active
+		ldrb r6, [r6]
+		cmp r6, #0			; If power pellet is not active, pacman dead. Otherwise ghost eaten
+		beq normal_ghost_coll	; Pacman position = clyde position
+		ldr r0, ptr_to_clyde_pos		; Pass pos, spawn, dir to ghost_eaten
+		ldr r1, ptr_to_clyde_spawn
+		ldr r2, ptr_to_clyde_dir
+		bl ghost_eaten
+		b exit_check_ghost_coll
 clyde_nocoll:				; No collision with clyde
 		ldr r0, ptr_to_inky_pos
 		ldrb r1, [r0]		; r1 = inky line pos
@@ -359,7 +392,15 @@ clyde_nocoll:				; No collision with clyde
 		bne inky_nocoll
 		cmp r5, r2
 		bne inky_nocoll
-		bl pacman_dead		; Pacman position = inky position
+		ldr r6, ptr_to_power_pellet_time	; Check if power pellet is active
+		ldrb r6, [r6]
+		cmp r6, #0			; If power pellet is not active, pacman dead. Otherwise ghost eaten
+		beq normal_ghost_coll	; Pacman position = inky position
+		ldr r0, ptr_to_inky_pos		; Pass pos, spawn, dir to ghost_eaten
+		ldr r1, ptr_to_inky_spawn
+		ldr r2, ptr_to_inky_dir
+		bl ghost_eaten
+		b exit_check_ghost_coll
 inky_nocoll:				; No collision with inky
 		ldr r0, ptr_to_pinky_pos
 		ldrb r1, [r0]		; r1 = pinky line pos
@@ -368,8 +409,44 @@ inky_nocoll:				; No collision with inky
 		bne pinky_nocoll
 		cmp r5, r2
 		bne pinky_nocoll
-		bl pacman_dead		; Pacman position = pinky position
+		ldr r6, ptr_to_power_pellet_time	; Check if power pellet is active
+		ldrb r6, [r6]
+		cmp r6, #0			; If power pellet is not active, pacman dead. Otherwise ghost eaten
+		beq normal_ghost_coll	; Pacman position = pinky position
+		ldr r0, ptr_to_pinky_pos		; Pass pos, spawn, dir to ghost_eaten
+		ldr r1, ptr_to_pinky_spawn
+		ldr r2, ptr_to_pinky_dir
+		bl ghost_eaten
+		b exit_check_ghost_coll
 pinky_nocoll:				; No collision with pinky
+		b exit_check_ghost_coll
+
+normal_ghost_coll:			; Power pellet isn't active
+		bl pacman_dead
+exit_check_ghost_coll:
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+; Called when scared ghost collides with pacman
+; r0 = ptr to ghost pos
+; r1 = ptr to ghost spawn
+; r2 = ptr to ghost dir
+ghost_eaten:
+		PUSH {r4-r12, lr}
+
+		; Teleport ghost to its spawn
+		ldrb r4, [r1]		; r4 = spawn line
+		ldrb r5, [r1, #1]	; r5 = spawn column
+		strb r4, [r0]
+		strb r5, [r0, #1]
+
+		; Make ghost move up (needs to move up and down within box)
+		mov r4, #1
+		mov r5, #0
+		strb r4, [r2]
+		strb r5, [r2, #1]
 
 		POP {r4-r12, lr}
 		MOV pc, lr
@@ -508,6 +585,12 @@ exit_ghost_wrap:
 
 		; Print ghost
 		bl move_cursor
+		ldr r4, ptr_to_power_pellet_time		; Load and check if power pellet is active
+		ldrb r4, [r4]
+		cmp r4, #0
+		beq print_normal_ghost
+		ldr r2, ptr_to_scared_string		; If power pellet active, print scared ghost
+print_normal_ghost:
 		mov r0, r2
 		bl output_string
 
