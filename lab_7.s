@@ -45,6 +45,7 @@ path_string:	.string 0x10, 0x17, 0		; path
 gate_string:	.string 0x10, 0x18, ' ', 0	; ghost spawn gate
 wall_string:	.string 0x10, 0x19, ' ', 0	; wall(black background)
 white_string:	.string 0x10, 0x1A, 0		; white foreground
+black_bg:		.string 0x10, 0x19, 0		; black background
 
 
 ; Lookup table that references ANSI escape sequences
@@ -88,8 +89,11 @@ pinky_spawn:		.byte 15, 17
 lives:				.byte 4
 is_game_over:		.byte 0
 power_pellet_time:	.byte 0		; Time left until power pellet wears off in number of game ticks(not seconds)
-
 game_paused:		.byte 1
+
+score:				.word 0
+score_string:		.string "000000", 0
+score_buffer:		.string "000000", 0
 
 ; Initial board setup
 board_initial:
@@ -210,6 +214,11 @@ ptr_to_pinky_spawn:			.word pinky_spawn
 ptr_to_lives:				.word lives
 ptr_to_is_game_over:		.word is_game_over
 ptr_to_power_pellet_time:	.word power_pellet_time
+ptr_to_game_paused:			.word game_paused
+
+ptr_to_score:				.word score
+ptr_to_score_string:		.word score_string
+ptr_to_score_buffer:		.word score_buffer
 
 ptr_to_board_initial:		.word board_initial
 ptr_to_board_current:		.word board_current
@@ -218,8 +227,7 @@ ptr_to_path_string:			.word path_string
 ptr_to_wall_string:			.word wall_string
 ptr_to_gate_string:			.word gate_string
 ptr_to_white_string:		.word white_string
-
-ptr_to_game_paused:			.word game_paused
+ptr_to_black_bg:			.word black_bg
 
 
 ; Offset used for indexing in lookup table
@@ -335,6 +343,14 @@ draw_board_cursor_update:	; Increment col, line counter
 		bge draw_board_exit
 		b draw_board_line_loop
 draw_board_exit:
+		mov r0, #2			; Pos for score on board
+		mov r1, #12
+		bl move_cursor
+		ldr r0, ptr_to_black_bg
+		bl output_string
+		ldr r0, ptr_to_score_string
+		bl output_string
+
 		POP {r4-r12, lr}
 		MOV pc, lr
 
@@ -579,7 +595,7 @@ move_pacman:
 		add r0, r6, r4
 		add r1, r7, r5
 
-		bl check_pacman_wrap
+		bl check_pacman_wrap	; Applies wrap and returns pos to r0, r1
 
 		; Store final pacman position
 		ldr r2, ptr_to_pacman_pos
@@ -593,8 +609,107 @@ move_pacman:
 		ldr r0, ptr_to_pacman_string
 		bl output_string
 
+		bl check_pellet
+
 		POP {r4-r12, lr}
 		MOV pc, lr
+
+
+; Checks if pacman's position is on a pellet then updates game state
+check_pellet:
+		PUSH {r4-r12, lr}
+
+		ldr r0, ptr_to_pacman_pos	; Load pacman position
+		ldrb r1, [r0]				; r5 = line
+		ldrb r2, [r0, #1]			; r6 = column
+
+		; Find corresponding location in board_current
+		sub r1, r1, #1		; Subtract 1 becuase putty position starts with 1
+		sub r2, r2, #1
+		mov r0, #BOARD_WIDTH
+		mul r1, r1, r0		; Calculate pacman position within board_current
+		add r1, r1, r2		; r1 = offset from board_current pointer
+
+		ldr r0, ptr_to_board_current
+		ldrb r2, [r0, r1]	; Load board char at pacman pos
+		cmp r2, #0x2E		; is char = '.'?
+		beq eat_normal_pellet
+		cmp r2, #0x4F		; is char = 'O'?
+		beq eat_power_pellet
+		b check_pellet_exit	; if neither, exit
+
+eat_normal_pellet:
+		mov r2, #0x20				; 0x20 = ' '
+		strb r2, [r0, r1]			; Store space to pellet pos
+		ldr r0, ptr_to_score		; Load score
+		ldr r1, [r0]
+		add r1, r1, #10				; Update score
+		str r1, [r0]
+		mov r0, r1
+		bl update_score_string
+		b check_pellet_exit
+eat_power_pellet:
+		mov r2, #0x20				; 0x20 = ' '
+		strb r2, [r0, r1]			; Store space to pellet pos
+		ldr r0, ptr_to_score		; Load score
+		ldr r1, [r0]
+		add r1, r1, #50				; Update score
+		str r1, [r0]
+		mov r0, r1
+		bl update_score_string
+check_pellet_exit:
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+; Updates score string in memory to given score
+; r0 = new score
+update_score_string:
+		PUSH {r4-r12, lr}
+
+		ldr r0, ptr_to_score_buffer	; Score buffer pointer
+		bl int2str					; Store score in buffer as string
+
+		ldr r0, ptr_to_score_buffer
+		bl find_null				; Find end address of buffer
+		ldr r1, ptr_to_score_buffer
+		sub r2, r0, r1				; Calculate number of digits
+
+		ldr r0, ptr_to_score_string
+		mov r1, #0x30				; 0x30 = '0'
+		strb r1, [r0]				; Fill score_string with '0's
+		strb r1, [r0, #1]
+		strb r1, [r0, #2]
+		strb r1, [r0, #3]
+		strb r1, [r0, #4]
+		strb r1, [r0, #5]
+
+		mov r1, #6					; Score string length is 6
+		sub r1, r1, r2				; Calculate starting pos
+		add r0, r0, r1				; Move pointer to starting pos
+
+		ldr r1, ptr_to_score_buffer
+update_score_string_loop:			; Copy buffer to score_string
+		ldrb r2, [r1], #1
+		cmp r2, #0					; If null char, exit loop
+		beq update_score_string_done
+		strb r2, [r0], #1
+		b update_score_string_loop
+update_score_string_done:
+		mov r0, #2					; pos for score on board
+		mov r1, #12
+		bl move_cursor
+		ldr r0, ptr_to_black_bg		; make background black
+		bl output_string
+		ldr r0, ptr_to_white_string	; make foreground white
+		bl output_string
+		ldr r0, ptr_to_score_string	; print score
+		bl output_string
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
 
 ; Need to erase pacman and ghosts before moving to prevent overwriting ghost or pacman
 erase_entities:
