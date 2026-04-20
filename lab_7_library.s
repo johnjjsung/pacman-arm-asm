@@ -267,7 +267,7 @@ output_str_loop:
 
 	cmp r5, #0x10		; Check if we need to go to lookup table
 	blt not_ansi
-	cmp r5, #0x16		; Need to keep update this as we add escape sequences
+	cmp r5, #0x1A		; Need to keep update this as we add escape sequences
 	bgt not_ansi
 
 	sub r5, r5, #0x10	; Calculate index for lookup table

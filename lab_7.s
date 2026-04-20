@@ -20,12 +20,16 @@
 
 ; ANSI escape sequences for bold and colors
 ansi_bold:		.string 0x1B, "[1m", 0
-ansi_yellow:	.string 0x1B, "[38;5;11m", 0
-ansi_red:		.string 0x1B, "[38;5;9m", 0
+ansi_yellow:	.string 0x1B, "[38;5;226m", 0
+ansi_red:		.string 0x1B, "[38;5;196m", 0
 ansi_orange:	.string 0x1B, "[38;5;202m", 0
 ansi_cyan:		.string 0x1B, "[38;5;25m", 0
 ansi_pink:		.string 0x1B, "[38;5;207m", 0
-ansi_blue:		.string 0x1B, "[38;5;12m", 0
+ansi_blue:		.string 0x1B, "[38;5;26m", 0
+ansi_path:		.string 0x1B, "[48;5;110m", 0
+ansi_gate:		.string 0x1B, "[48;5;51m", 0
+ansi_wall:		.string 0x1B, "[48;5;16m", 0
+ansi_white:		.string 0x1B, "[38;5;231m", 0
 
 ; ANSI escape sequence for cursor position
 cursor_pos:		.string 0x1B, "[123;456H", 0
@@ -37,6 +41,10 @@ clyde_string:	.string 0x10, 0x13, 'A', 0	; orange ghost
 inky_string:	.string 0x10, 0x14, 'A', 0	; cyan ghost
 pinky_string:	.string 0x10, 0x15, 'A', 0	; pink ghost
 scared_string:	.string 0x10, 0x16, 'W', 0	; scared ghosts
+path_string:	.string 0x10, 0x17, 0		; path
+gate_string:	.string 0x10, 0x18, ' ', 0	; ghost spawn gate
+wall_string:	.string 0x10, 0x19, ' ', 0	; wall(black background)
+white_string:	.string 0x10, 0x1A, 0		; white foreground
 
 
 ; Lookup table that references ANSI escape sequences
@@ -48,22 +56,26 @@ lookup_table:
 		.word ansi_cyan
 		.word ansi_pink
 		.word ansi_blue
+		.word ansi_path
+		.word ansi_gate
+		.word ansi_wall
+		.word ansi_white
 
 
-pacman_pos:		.byte 10, 4		; Pacman position in line, column format
+pacman_pos:		.byte 26, 15	; Pacman position in line, column format
 pacman_dir:		.byte 0, 1		; Direction for pacman movement in line, column format to make cursor movement logic cleaner.
 
 ; Positions and directions for ghosts
-blinky_pos:			.byte 11, 4
+blinky_pos:			.byte 15, 12
 blinky_dir:			.byte 0, 1
 
-clyde_pos:			.byte 12, 4
+clyde_pos:			.byte 15, 13
 clyde_dir:			.byte 0, 1
 
-inky_pos:			.byte 13, 4
+inky_pos:			.byte 15, 16
 inky_dir:			.byte 0, 1
 
-pinky_pos:			.byte 14, 4
+pinky_pos:			.byte 15, 17
 pinky_dir:			.byte 0, 1
 
 ; Coordinates for where each ghost will go when eaten by pacman
@@ -77,6 +89,79 @@ lives:				.byte 4
 is_game_over:		.byte 0
 power_pellet_time:	.byte 0		; Time left until power pellet wears off in number of game ticks(not seconds)
 
+game_paused:		.byte 1
+
+; Initial board setup
+board_initial:
+	.string "############################"
+	.string "############################"
+	.string "############################"
+	.string "#............##............#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#O####.#####.##.#####.####O#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#..........................#"
+	.string "#.####.##.########.##.####.#"
+	.string "#.####.##.########.##.####.#"
+	.string "#......##....##....##......#"
+	.string "######.##### ## #####.######"
+	.string "######.##          ##.######"
+	.string "######.## ###--### ##.######"
+	.string "######.## #      # ##.######"
+	.string "######.## #      # ##.######"
+	.string "      .   #      #   .      "
+	.string "######.## #      # ##.######"
+	.string "######.## #      # ##.######"
+	.string "######.## ######## ##.######"
+	.string "######.##          ##.######"
+	.string "######.## ######## ##.######"
+	.string "#............##............#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#O..##................##..O#"
+	.string "###.##.##.########.##.##.###"
+	.string "###.##.##.########.##.##.###"
+	.string "#......##....##....##......#"
+	.string "#.##########.##.##########.#"
+	.string "#.##########.##.##########.#"
+	.string "#..........................#"
+	.string "############################", 0
+
+; Real-time board state
+board_current:
+	.string "############################"
+	.string "############################"
+	.string "############################"
+	.string "#............##............#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#O####.#####.##.#####.####O#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#..........................#"
+	.string "#.####.##.########.##.####.#"
+	.string "#.####.##.########.##.####.#"
+	.string "#......##....##....##......#"
+	.string "######.##### ## #####.######"
+	.string "######.##          ##.######"
+	.string "######.## ###--### ##.######"
+	.string "######.## #      # ##.######"
+	.string "######.## #      # ##.######"
+	.string "      .   #      #   .      "
+	.string "######.## #      # ##.######"
+	.string "######.## #      # ##.######"
+	.string "######.## ######## ##.######"
+	.string "######.##          ##.######"
+	.string "######.## ######## ##.######"
+	.string "#............##............#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#.####.#####.##.#####.####.#"
+	.string "#O..##................##..O#"
+	.string "###.##.##.########.##.##.###"
+	.string "###.##.##.########.##.##.###"
+	.string "#......##....##....##......#"
+	.string "#.##########.##.##########.#"
+	.string "#.##########.##.##########.#"
+	.string "#..........................#"
+	.string "############################", 0
 
 	.text
 	.global lab7
@@ -126,14 +211,27 @@ ptr_to_lives:				.word lives
 ptr_to_is_game_over:		.word is_game_over
 ptr_to_power_pellet_time:	.word power_pellet_time
 
+ptr_to_board_initial:		.word board_initial
+ptr_to_board_current:		.word board_current
+
+ptr_to_path_string:			.word path_string
+ptr_to_wall_string:			.word wall_string
+ptr_to_gate_string:			.word gate_string
+ptr_to_white_string:		.word white_string
+
+ptr_to_game_paused:			.word game_paused
+
 
 ; Offset used for indexing in lookup table
 BOLD:		.equ 0x10
 YELLOW:		.equ 0x11
 RED:		.equ 0x12
 ORANGE:		.equ 0x13
-cyan:		.equ 0x14
+CYAN:		.equ 0x14
 PINK:		.equ 0x15
+PATH:		.equ 0x17
+GATE:		.equ 0x18
+WALL:		.equ 0x19
 
 
 lab7:
@@ -145,6 +243,12 @@ lab7:
 		bl gpio_interrupt_init
 		bl uart_interrupt_init
 		bl timer_interrupt_init
+
+		; Initialize and draw board
+		bl init_board
+		bl draw_board
+
+		bl resume_game		; Game needs to be paused when drawing board, so resume after drawing
 
 		; Load pacman position
 		ldr r2, ptr_to_pacman_pos	; Initialize pointer to pacman opsition
@@ -166,6 +270,94 @@ lab7_main_loop:
 		MOV pc, lr
 
 
+; Initializes real time board with board_init data
+init_board:
+		PUSH {r4-r12, lr}
+
+		ldr r0, ptr_to_board_initial	; Initialize pointers
+		ldr r1, ptr_to_board_current
+init_board_loop:
+		ldrb r2, [r0], #1		; Load a char and increment pointer
+		cmp r2, #0				; If null char, exit subroutine
+		beq init_board_exit
+		strb r2, [r1], #1		; Store to real time board
+		b init_board_loop
+init_board_exit:
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+; Draw entire board
+draw_board:
+		PUSH {r4-r12, lr}
+
+		ldr r4, ptr_to_board_current
+		mov r5, #1		; line pos
+		mov r6, #1		; column pos
+draw_board_line_loop:
+		mov r0, r5		; Move cursor
+		mov r1, #1
+		bl move_cursor
+		mov r6, #1
+draw_board_col_loop:
+		ldrb r7, [r4], #1
+		cmp r7, #0			; if null char, exit
+		beq draw_board_exit
+		cmp r7, #0x23		; '#'
+		beq draw_board_wall
+		cmp r7, #0x2D		; '-'
+		beq draw_board_gate
+draw_board_path:			; color background and output char
+		ldr r0, ptr_to_path_string
+		bl output_string
+		ldr r0, ptr_to_white_string
+		bl output_string
+		mov r0, r7
+		bl output_character
+		b draw_board_cursor_update
+draw_board_wall:			; output wall
+		ldr r0, ptr_to_wall_string
+		bl output_string
+		b draw_board_cursor_update
+draw_board_gate:			; output ghost spawn gate
+		ldr r0, ptr_to_gate_string
+		bl output_string
+draw_board_cursor_update:	; Increment col, line counter
+		add r6, r6, #1
+		cmp r6, #29
+		blt draw_board_col_loop
+		add r5, r5, #1		; If col over bound, increment line
+		cmp r5, #34			; Make sure everything within bound
+		bge draw_board_exit
+		b draw_board_line_loop
+draw_board_exit:
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+pause_game:
+		PUSH {r4-r12, lr}
+
+		ldr r0, ptr_to_game_paused
+		mov r1, #1
+		strb r1, [r0]
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+resume_game:
+		PUSH {r4-r12, lr}
+
+		ldr r0, ptr_to_game_paused
+		mov r1, #0
+		strb r1, [r0]
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
 Timer_Handler:
 		PUSH {r4-r12, lr}
 
@@ -174,6 +366,11 @@ Timer_Handler:
 		ldr r1, [r0]
 		orr r1, r1, #1
 		str r1, [r0]
+
+		ldr r0, ptr_to_game_paused		; If paused, skip tick
+		ldrb r0, [r0]
+		cmp r0, #1
+		beq timer_handler_exit
 
 		bl move_ghosts		; Update ghosts' position and redraw
 		bl check_ghost_coll
@@ -190,6 +387,8 @@ Timer_Handler:
 		add r0, r1, #48
 		bl output_character
 		;;;;;;;;;;
+
+timer_handler_exit:
 
 		POP {r4-r12, lr}
 		BX lr
@@ -511,6 +710,8 @@ exit_pacman_wrap:
 move_ghosts:
 		PUSH {r4-r12, lr}
 
+		bl erase_ghosts
+
 		ldr r0, ptr_to_blinky_pos
 		ldr r1, ptr_to_blinky_dir
 		ldr r2, ptr_to_blinky_string
@@ -534,6 +735,42 @@ move_ghosts:
 		POP {r4-r12, lr}
 		MOV pc, lr
 
+; Erase all ghosts (before updating pos and re-printing)
+erase_ghosts:
+		PUSH {r4-r12, lr}
+
+		ldr r2, ptr_to_blinky_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl move_cursor
+		mov r0, #0x20			; 0x20 = ' '
+		bl output_character		; erase ghost at pos
+
+		ldr r2, ptr_to_clyde_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl move_cursor
+		mov r0, #0x20			; 0x20 = ' '
+		bl output_character		; erase ghost at pos
+
+		ldr r2, ptr_to_inky_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl move_cursor
+		mov r0, #0x20			; 0x20 = ' '
+		bl output_character		; erase ghost at pos
+
+		ldr r2, ptr_to_pinky_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl move_cursor
+		mov r0, #0x20			; 0x20 = ' '
+		bl output_character		; erase ghost at pos
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
 
 ; r0 = ghost pos address
 ; r1 = ghost dir address
@@ -553,9 +790,9 @@ move_oneghost:
 		; Erase current ghost
 		bl move_cursor
 		;;;;;;;;;;;;;;;;; NEED TO CHANGE THIS LINE TO RESTORE PELLETS
-		mov r0, #0x20
+		;mov r0, #0x20
 		;;;;;;;;;;;;;;;;;
-		bl output_character
+		;bl output_character
 
 		; Load ghost direction
 		ldrsb r7, [r9]		; r7 = line dir
