@@ -233,6 +233,9 @@ PATH:		.equ 0x17
 GATE:		.equ 0x18
 WALL:		.equ 0x19
 
+BOARD_HEIGHT:	.equ 33
+BOARD_WIDTH:	.equ 28
+
 
 lab7:
 		PUSH {r4-r12, lr}
@@ -336,6 +339,60 @@ draw_board_exit:
 		MOV pc, lr
 
 
+; Draw tile at position with current board data
+; r0 = line pos
+; r1 = column pos
+draw_tile:
+		PUSH {r4-r12, lr}
+
+		mov r5, r0			; preserve pos to use for move_cursor
+		mov r6, r1
+
+		sub r0, r0, #1		; Subtract 1 because ansi coords start at 1
+		sub r1, r1, #1
+		mov r2, #BOARD_WIDTH
+		mul r4, r0, r2		; Calculate position in board_current
+		add r4, r4, r1
+
+		ldr r0, ptr_to_board_current
+		ldrb r4, [r0, r4]	; r4 = board_current tile char
+
+		cmp r4, #0			; if null char, exit
+		beq draw_tile_exit
+		cmp r4, #0x23		; if '#', output wall
+		beq draw_tile_wall
+		cmp r4, #0x2D		; if '-', output gate
+		beq draw_tile_gate
+draw_tile_path:				; else, draw path
+		mov r0, r5					; move cursor to pos
+		mov r1, r6
+		bl move_cursor
+		ldr r0, ptr_to_path_string	; output blue background
+		bl output_string
+		ldr r0, ptr_to_white_string	; prepare pellet output
+		bl output_string
+		mov r0, r4
+		bl output_character	; output pellet
+		b draw_tile_exit
+draw_tile_wall:
+		mov r0, r5					; move cursor to pos
+		mov r1, r6
+		bl move_cursor
+		ldr r0, ptr_to_wall_string	; output black background
+		bl output_string
+		b draw_tile_exit
+draw_tile_gate:
+		mov r0, r5					; move cursor to pos
+		mov r1, r6
+		bl move_cursor
+		ldr r0, ptr_to_gate_string	; output cyan background
+		bl output_string
+draw_tile_exit:
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
 pause_game:
 		PUSH {r4-r12, lr}
 
@@ -371,6 +428,8 @@ Timer_Handler:
 		ldrb r0, [r0]
 		cmp r0, #1
 		beq timer_handler_exit
+
+		bl erase_entities	; Erase everyone first to prevent graphical error
 
 		bl move_ghosts		; Update ghosts' position and redraw
 		bl check_ghost_coll
@@ -511,11 +570,6 @@ move_pacman:
 		mov r6, r0		; Preserve r0, r1 before move_cursor
 		mov r7, r1
 
-		; Erase current pacman
-		bl move_cursor
-		mov r0, #0x20
-		bl output_character
-
 		; Load pacman direction
 		ldr r3, ptr_to_pacman_dir
 		ldrsb r4, [r3]			; r4 = line dir
@@ -534,8 +588,43 @@ move_pacman:
 
 		; Print pacman
 		bl move_cursor
+		ldr r0, ptr_to_path_string		; output path background because pacman will always be on path
+		bl output_string
 		ldr r0, ptr_to_pacman_string
 		bl output_string
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+; Need to erase pacman and ghosts before moving to prevent overwriting ghost or pacman
+erase_entities:
+		PUSH {r4-r12, lr}
+
+		ldr r2, ptr_to_pacman_pos	; Erase pacman
+		ldrb r0, [r2]
+		ldrb r1, [r2, #1]
+		bl draw_tile
+
+		; Erase ghosts
+		ldr r2, ptr_to_blinky_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl draw_tile			; erase ghost at pos
+
+		ldr r2, ptr_to_clyde_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl draw_tile			; erase ghost at pos
+
+		ldr r2, ptr_to_inky_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl draw_tile			; erase ghost at pos
+
+		ldr r2, ptr_to_pinky_pos
+		ldrb r0, [r2]			; r0 = line pos
+		ldrb r1, [r2, #1]		; r1 = col pos
+		bl draw_tile			; erase ghost at pos
 
 		POP {r4-r12, lr}
 		MOV pc, lr
@@ -710,8 +799,6 @@ exit_pacman_wrap:
 move_ghosts:
 		PUSH {r4-r12, lr}
 
-		bl erase_ghosts
-
 		ldr r0, ptr_to_blinky_pos
 		ldr r1, ptr_to_blinky_dir
 		ldr r2, ptr_to_blinky_string
@@ -735,42 +822,6 @@ move_ghosts:
 		POP {r4-r12, lr}
 		MOV pc, lr
 
-; Erase all ghosts (before updating pos and re-printing)
-erase_ghosts:
-		PUSH {r4-r12, lr}
-
-		ldr r2, ptr_to_blinky_pos
-		ldrb r0, [r2]			; r0 = line pos
-		ldrb r1, [r2, #1]		; r1 = col pos
-		bl move_cursor
-		mov r0, #0x20			; 0x20 = ' '
-		bl output_character		; erase ghost at pos
-
-		ldr r2, ptr_to_clyde_pos
-		ldrb r0, [r2]			; r0 = line pos
-		ldrb r1, [r2, #1]		; r1 = col pos
-		bl move_cursor
-		mov r0, #0x20			; 0x20 = ' '
-		bl output_character		; erase ghost at pos
-
-		ldr r2, ptr_to_inky_pos
-		ldrb r0, [r2]			; r0 = line pos
-		ldrb r1, [r2, #1]		; r1 = col pos
-		bl move_cursor
-		mov r0, #0x20			; 0x20 = ' '
-		bl output_character		; erase ghost at pos
-
-		ldr r2, ptr_to_pinky_pos
-		ldrb r0, [r2]			; r0 = line pos
-		ldrb r1, [r2, #1]		; r1 = col pos
-		bl move_cursor
-		mov r0, #0x20			; 0x20 = ' '
-		bl output_character		; erase ghost at pos
-
-		POP {r4-r12, lr}
-		MOV pc, lr
-
-
 
 ; r0 = ghost pos address
 ; r1 = ghost dir address
@@ -788,7 +839,7 @@ move_oneghost:
 		mov r6, r1
 
 		; Erase current ghost
-		bl move_cursor
+		;bl move_cursor
 		;;;;;;;;;;;;;;;;; NEED TO CHANGE THIS LINE TO RESTORE PELLETS
 		;mov r0, #0x20
 		;;;;;;;;;;;;;;;;;
@@ -822,7 +873,9 @@ exit_ghost_wrap:
 
 		; Print ghost
 		bl move_cursor
-		ldr r4, ptr_to_power_pellet_time		; Load and check if power pellet is active
+		ldr r0, ptr_to_path_string			; Output path background because ghosts will be on path
+		bl output_string
+		ldr r4, ptr_to_power_pellet_time	; Load and check if power pellet is active
 		ldrb r4, [r4]
 		cmp r4, #0
 		beq print_normal_ghost
