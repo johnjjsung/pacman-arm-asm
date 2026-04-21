@@ -88,12 +88,16 @@ pinky_spawn:		.byte 15, 17
 
 lives:				.byte 4
 is_game_over:		.byte 0
-power_pellet_time:	.byte 0		; Time left until power pellet wears off in number of game ticks(not seconds)
 game_paused:		.byte 1
 
 score:				.word 0
 score_string:		.string "000000", 0
 score_buffer:		.string "000000", 0
+
+timer_interval:		.word 0x003D0900	; Interval between ticks
+power_pellet_time:	.byte 0				; Time left until power pellet wears off in seconds
+tick_count:			.byte 0				; How many ticks passed in current second
+
 
 ; Initial board setup
 board_initial:
@@ -213,7 +217,6 @@ ptr_to_pinky_spawn:			.word pinky_spawn
 
 ptr_to_lives:				.word lives
 ptr_to_is_game_over:		.word is_game_over
-ptr_to_power_pellet_time:	.word power_pellet_time
 ptr_to_game_paused:			.word game_paused
 
 ptr_to_score:				.word score
@@ -228,6 +231,10 @@ ptr_to_wall_string:			.word wall_string
 ptr_to_gate_string:			.word gate_string
 ptr_to_white_string:		.word white_string
 ptr_to_black_bg:			.word black_bg
+
+ptr_to_timer_interval:		.word timer_interval
+ptr_to_power_pellet_time:	.word power_pellet_time
+ptr_to_tick_count:			.word tick_count
 
 
 ; Offset used for indexing in lookup table
@@ -445,6 +452,8 @@ Timer_Handler:
 		cmp r0, #1
 		beq timer_handler_exit
 
+		bl update_power_pellet
+
 		bl erase_entities	; Erase everyone first to prevent graphical error
 
 		bl move_ghosts		; Update ghosts' position and redraw
@@ -643,9 +652,7 @@ eat_normal_pellet:
 		strb r2, [r0, r1]			; Store space to pellet pos
 		ldr r0, ptr_to_score		; Load score
 		ldr r1, [r0]
-		add r1, r1, #10				; Update score
-		str r1, [r0]
-		mov r0, r1
+		add r0, r1, #10				; Update score
 		bl update_score_string
 		b check_pellet_exit
 eat_power_pellet:
@@ -653,10 +660,16 @@ eat_power_pellet:
 		strb r2, [r0, r1]			; Store space to pellet pos
 		ldr r0, ptr_to_score		; Load score
 		ldr r1, [r0]
-		add r1, r1, #50				; Update score
-		str r1, [r0]
-		mov r0, r1
+		add r0, r1, #50				; Update score
 		bl update_score_string
+
+		ldr r0, ptr_to_power_pellet_time	; Set remaining power pellet time to 15
+		mov r1, #15
+		strb r1, [r0]
+
+		ldr r0, ptr_to_tick_count			; Initialize tick counter to 0
+		mov r1, #0
+		strb r1, [r0]
 check_pellet_exit:
 
 		POP {r4-r12, lr}
@@ -667,7 +680,16 @@ check_pellet_exit:
 ; r0 = new score
 update_score_string:
 		PUSH {r4-r12, lr}
+		mov  r1, #0x423F			; 0xF423F = 999999
+		movt r1, #0x000F
+		cmp r0, r1					; If score greater than 999999, set score to 999999(max score)
+		it ge
+		movge r0, r1
 
+		ldr r1, ptr_to_score		; Update int score first
+		str r0, [r1]
+
+		mov r1, r0					; move to r1 for int2str
 		ldr r0, ptr_to_score_buffer	; Score buffer pointer
 		bl int2str					; Store score in buffer as string
 
@@ -707,6 +729,33 @@ update_score_string_done:
 		ldr r0, ptr_to_score_string	; print score
 		bl output_string
 
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+update_power_pellet:
+		PUSH {r4-r12, lr}
+
+		; Power pellet time update
+		ldr r0, ptr_to_power_pellet_time	; Load remaining power pellet time
+		ldrb r1, [r0]
+		cmp r1, #0							; If time=0, skip power pellet calculation
+		beq update_power_pellet_exit
+
+		ldr r2, ptr_to_tick_count		; Load tick count
+		ldrb r3, [r2]
+		add r3, r3, #1					; Increment tick count
+		strb r3, [r2]
+
+		cmp r3, #4			; If not at 4 ticks yet, exit
+		blt update_power_pellet_exit
+
+		mov r3, #0			; Reset tick count to 0
+		strb r3, [r2]
+		sub r1, r1, #1		; Decrement remaining time
+		strb r1, [r0]
+
+update_power_pellet_exit:
 		POP {r4-r12, lr}
 		MOV pc, lr
 
