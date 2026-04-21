@@ -183,6 +183,7 @@ board_current:
 	.global int2str
 	.global output_character
 	.global simple_read_character
+	.global illuminate_RGB_LED
 
 	.global Timer_Handler
 	.global UART0_Handler
@@ -752,13 +753,35 @@ update_power_pellet:
 		add r3, r3, #1					; Increment tick count
 		strb r3, [r2]
 
+		; RGB LED logic
+		cmp r1, #5			; If above 5 seconds left, illuminate blue
+		ble power_pellet_blink
+		mov r0, #2			; 2 = blue
+		bl illuminate_RGB_LED
+		b skip_blink
+
+power_pellet_blink:
+		mov r0, #1			; 1 = red
+		lsl r4, r3, #1		; Divide tick count by 2
+		cmp r4, #2			; If above 2, illuminate red. Otherwise blue
+		it le
+		movle r0, #0
+		bl illuminate_RGB_LED
+
+skip_blink:
 		cmp r3, #4			; If not at 4 ticks yet, exit
 		blt update_power_pellet_exit
 
 		mov r3, #0			; Reset tick count to 0
 		strb r3, [r2]
 		sub r1, r1, #1		; Decrement remaining time
+		ldr r0, ptr_to_power_pellet_time
 		strb r1, [r0]
+
+		cmp r1, #0			; If time at 0, turn off LED. Otherwise exit
+		bne update_power_pellet_exit
+		mov r0, #0
+		bl illuminate_RGB_LED
 
 update_power_pellet_exit:
 		POP {r4-r12, lr}
