@@ -106,6 +106,10 @@ ghosts_eaten:		.byte 0
 first_tick:			.byte 1				; Flag used for first tick after start/board reset
 reset_flag:			.byte 0				; Set to signal main loop to reset
 
+rng_seed:			.word 0x12345678	; Seed for random number generator
+
+ghost_turn_choices:	.byte 0, 0, 0		; forward, left, right
+
 ; Initial board setup
 board_initial:
 	.string "############################"
@@ -190,6 +194,8 @@ board_current:
 	.global output_character
 	.global simple_read_character
 	.global illuminate_RGB_LED
+	.global unsigned_division
+	.global mod
 
 	.global Timer_Handler
 	.global UART0_Handler
@@ -253,6 +259,8 @@ ptr_to_clear_string:		.word clear_string
 ptr_to_first_tick:			.word first_tick
 ptr_to_reset_flag:			.word reset_flag
 
+ptr_to_rng_seed:			.word rng_seed
+ptr_to_ghost_turn_choices:	.word ghost_turn_choices
 
 ; Offset used for indexing in lookup table
 BOLD:		.equ 0x10
@@ -1264,7 +1272,7 @@ move_oneghost:
 		PUSH {r4-r12, lr}
 
 		mov r4, r0		; r4 = ghost pos address
-		mov r9, r1		; r6 = ghost dir address
+		mov r10, r1		; r10 = ghost dir address
 
 		ldrb r0, [r4]		; r0 = line pos
 		ldrb r1, [r4, #1]	; r1 = column pos
@@ -1280,8 +1288,8 @@ move_oneghost:
 		;bl output_character
 
 		; Load ghost direction
-		ldrsb r7, [r9]		; r7 = line dir
-		ldrsb r8, [r9, #1]	; r8 = column dir
+		ldrsb r7, [r10]		; r7 = line dir
+		ldrsb r8, [r10, #1]	; r8 = column dir
 
 		; If first tick, use dir 0, 0
 		ldr r9, ptr_to_first_tick
@@ -1318,17 +1326,22 @@ exit_ghost_wrap:
 		bl move_cursor
 		ldr r0, ptr_to_path_string			; Output path background because ghosts will be on path
 		bl output_string
-		ldr r4, ptr_to_power_pellet_time	; Load and check if power pellet is active
-		ldrb r4, [r4]
-		cmp r4, #0
+		ldr r9, ptr_to_power_pellet_time	; Load and check if power pellet is active
+		ldrb r9, [r9]
+		cmp r9, #0
 		beq print_normal_ghost
 		ldr r2, ptr_to_scared_string		; If power pellet active, print scared ghost
 print_normal_ghost:
 		mov r0, r2
 		bl output_string
 
+		mov r0, r4				; move ghost pos pointer to r0
+		mov r1, r10				; move ghost dir pointer to r1
+		bl ghost_choose_path	; determine ghost new direction based on current pos
+
 		POP {r4-r12, lr}
 		MOV pc, lr
+
 
 
 check_wall:
@@ -1337,6 +1350,149 @@ check_wall:
 
 
 		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+; choose ghost's new dir for next tick.
+; r0 = ghost pos pointer, r1 = ghost dir pointer
+ghost_choose_path:
+		PUSH {r4-r12, lr}
+
+		mov r4, r0		; r4 = pos pointer
+		mov r5, r1		; r5 = dir pointer
+
+		ldrb r6, [r4]		; r6 = pos line
+		ldrb r7, [r4, #1]	; r7 = pos col
+		ldrsb r8, [r5]		; r8 = dir line
+		ldrsb r9, [r5, #1]	; r9 = dir col
+
+		mov r10, #0			; Initialize valid path count
+
+		; try forward
+		add r0, r6, r8
+		add r1, r7, r9
+		bl ghost_check_wall
+		add r10, r10, r0
+
+		; try right
+		add r0, r6, r9
+		mov r2, #-1
+		mul r2, r8, r2
+		add r1, r7, r2
+		bl ghost_check_wall
+		add r10, r10, r0
+
+		;try left
+		mov r2, #-1
+		mul r2, r9, r2
+		add r0, r6, r2
+		add r1, r7, r8
+		bl ghost_check_wall
+		add r10, r10, r0
+
+		cmp r10, #0			; theoretically shouldn't happen
+		beq ghost_choose_path_exit
+
+		bl generate_random_number	; r0 = random number
+		udiv r2, r0, r10	; r0 % r10
+		mul r2, r2, r10
+		sub r0, r0, r2
+		mov r11, r0
+
+		; check each direction again, skipping invalid ones and decrementing r11 on valid ones. if r11 is 0 on a valid path set direction to that one.
+		; try forward
+		add r0, r6, r8
+		add r1, r7, r9
+		bl ghost_check_wall
+		cmp r0, #0				; If wall, try right
+		beq ghost_try_right
+		cmp r11, #0				; If not wall and random counter is 0, go forward
+		beq ghost_go_forward
+		sub r11, #1				; If random counter is not 0, decrement
+ghost_try_right:				; Try the same for right
+		add r0, r6, r9
+		mov r2, #-1
+		mul r2, r8, r2
+		add r1, r7, r2
+		bl ghost_check_wall
+		cmp r0, #0
+		beq ghost_try_left
+		cmp r11, #0
+		beq ghost_go_right
+		sub r11, #1
+ghost_try_left:					; Try the same for left
+		mov r2, #-1
+		mul r2, r9, r2
+		add r0, r6, r2
+		add r1, r7, r8
+		bl ghost_check_wall
+		cmp r0, #0
+		beq ghost_choose_path_exit
+		cmp r11, #0
+		beq ghost_go_left
+		sub r11, #1
+		b ghost_choose_path_exit
+
+ghost_go_forward:
+		mov r0, r8
+		mov r1, r9
+		b ghost_store_direction
+ghost_go_right:
+		mov r0, r9
+		mov r2, #-1
+		mul r1, r8, r2
+		b ghost_store_direction
+ghost_go_left:
+		mov r2, #-1
+		mul r0, r9, r2
+		mov r1, r8
+ghost_store_direction:
+		strb r0, [r5]
+		strb r1, [r5, #1]
+
+ghost_choose_path_exit:
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+; r0, r1 = tile position to check
+; return 0 if wall, otherwise 1 (so that i can just add return value in ghost_choose_path)
+ghost_check_wall:
+		PUSH {lr}
+
+		sub r0, r0, #1		; minus 1 because putty coords start from 1
+		sub r1, r1, #1
+		mov r2, #BOARD_WIDTH
+		mul r0, r0, r2		; Calculate tile position in memory
+		add r0, r0, r1
+
+		ldr r2, ptr_to_board_current
+		ldrb r1, [r2, r0]	; Load tile
+		mov r0, #1
+		cmp r1, #0x23		; 0x23 = '#'
+		it eq
+		moveq r0, #0
+
+		POP {lr}
+		MOV pc, lr
+
+
+; Generates a psuedo random number for ghost path selection and returns to r0
+generate_random_number:
+		PUSH {lr}
+
+		ldr r0, ptr_to_rng_seed		; Load seed
+		ldr r1, [r0]
+
+		eor r1, r1, r1, lsl #13		; Apply XORShift algorithm
+		eor r1, r1, r1, lsr #17
+		eor r1, r1, r1, lsl #5
+
+		str r1, [r0]				; Store result as new seed
+		mov r0, r1					; Return result to r0
+
+		POP {lr}
 		MOV pc, lr
 
 	.end
