@@ -71,23 +71,27 @@ pacman_dir:		.byte 0, 1		; Direction for pacman movement in line, column format 
 pacman_spawn:	.byte 26, 15
 
 ; Positions and directions for ghosts
-blinky_pos:			.byte 15, 12
+blinky_pos:			.byte 16, 13
 blinky_dir:			.byte 0, 1
+blinky_state:		.byte 2		; 0 = normal, 1 = in box, 2 = leaving box
 
-clyde_pos:			.byte 15, 13
+clyde_pos:			.byte 18, 12
 clyde_dir:			.byte 0, 1
+clyde_state:		.byte 2
 
-inky_pos:			.byte 15, 16
+inky_pos:			.byte 16, 16
 inky_dir:			.byte 0, 1
+inky_state:			.byte 2
 
-pinky_pos:			.byte 15, 17
+pinky_pos:			.byte 18, 17
 pinky_dir:			.byte 0, 1
+pinky_state:		.byte 2
 
 ; Coordinates for where each ghost will go when eaten by pacman
-blinky_spawn:		.byte 15, 12
-clyde_spawn:		.byte 15, 13
-inky_spawn:			.byte 15, 16
-pinky_spawn:		.byte 15, 17
+blinky_spawn:		.byte 16, 13
+clyde_spawn:		.byte 18, 12
+inky_spawn:			.byte 16, 16
+pinky_spawn:		.byte 18, 17
 
 
 lives:				.byte 4
@@ -214,15 +218,19 @@ ptr_to_pacman_spawn:		.word pacman_spawn
 ptr_to_blinky_string:		.word blinky_string
 ptr_to_blinky_pos:			.word blinky_pos
 ptr_to_blinky_dir:			.word blinky_dir
+ptr_to_blinky_state:		.word blinky_state
 ptr_to_clyde_string:		.word clyde_string
 ptr_to_clyde_pos:			.word clyde_pos
 ptr_to_clyde_dir:			.word clyde_dir
+ptr_to_clyde_state:			.word clyde_state
 ptr_to_inky_string:			.word inky_string
 ptr_to_inky_pos:			.word inky_pos
 ptr_to_inky_dir:			.word inky_dir
+ptr_to_inky_state:			.word inky_state
 ptr_to_pinky_string:		.word pinky_string
 ptr_to_pinky_pos:			.word pinky_pos
 ptr_to_pinky_dir:			.word pinky_dir
+ptr_to_pinky_state:			.word pinky_state
 ptr_to_scared_string:		.word scared_string
 
 ptr_to_blinky_spawn:		.word blinky_spawn
@@ -275,6 +283,11 @@ WALL:		.equ 0x19
 
 BOARD_HEIGHT:	.equ 33
 BOARD_WIDTH:	.equ 28
+
+; For ghost states
+NORMAL:			.equ 0
+IN_BOX:			.equ 1
+LEAVING_BOX:	.equ 2
 
 
 lab7:
@@ -901,6 +914,35 @@ skip_blink:
 		mov r0, #0
 		bl illuminate_RGB_LED
 
+		; Update states of ghosts IN_BOX to LEAVING_BOX. Skip NORMAL
+		ldr r0, ptr_to_blinky_state
+		ldrb r1, [r0]
+		cmp r1, #IN_BOX
+		it eq
+		moveq r1, #LEAVING_BOX
+		strb r1, [r0]
+
+		ldr r0, ptr_to_clyde_state
+		ldrb r1, [r0]
+		cmp r1, #IN_BOX
+		it eq
+		moveq r1, #LEAVING_BOX
+		strb r1, [r0]
+
+		ldr r0, ptr_to_inky_state
+		ldrb r1, [r0]
+		cmp r1, #IN_BOX
+		it eq
+		moveq r1, #LEAVING_BOX
+		strb r1, [r0]
+
+		ldr r0, ptr_to_pinky_state
+		ldrb r1, [r0]
+		cmp r1, #IN_BOX
+		it eq
+		moveq r1, #LEAVING_BOX
+		strb r1, [r0]
+
 update_power_pellet_exit:
 		POP {r4-r12, lr}
 		MOV pc, lr
@@ -963,6 +1005,7 @@ check_ghost_coll:
 		ldr r0, ptr_to_blinky_pos		; Pass pos, spawn, dir to eat_ghost
 		ldr r1, ptr_to_blinky_spawn
 		ldr r2, ptr_to_blinky_dir
+		ldr r3, ptr_to_blinky_state
 		bl eat_ghost
 		b exit_check_ghost_coll
 blinky_nocoll:				; No collision with blinky
@@ -980,6 +1023,7 @@ blinky_nocoll:				; No collision with blinky
 		ldr r0, ptr_to_clyde_pos		; Pass pos, spawn, dir to eat_ghost
 		ldr r1, ptr_to_clyde_spawn
 		ldr r2, ptr_to_clyde_dir
+		ldr r3, ptr_to_clyde_state
 		bl eat_ghost
 		b exit_check_ghost_coll
 clyde_nocoll:				; No collision with clyde
@@ -997,6 +1041,7 @@ clyde_nocoll:				; No collision with clyde
 		ldr r0, ptr_to_inky_pos		; Pass pos, spawn, dir to eat_ghost
 		ldr r1, ptr_to_inky_spawn
 		ldr r2, ptr_to_inky_dir
+		ldr r3, ptr_to_inky_state
 		bl eat_ghost
 		b exit_check_ghost_coll
 inky_nocoll:				; No collision with inky
@@ -1014,6 +1059,7 @@ inky_nocoll:				; No collision with inky
 		ldr r0, ptr_to_pinky_pos		; Pass pos, spawn, dir to eat_ghost
 		ldr r1, ptr_to_pinky_spawn
 		ldr r2, ptr_to_pinky_dir
+		ldr r3, ptr_to_pinky_state
 		bl eat_ghost
 		b exit_check_ghost_coll
 pinky_nocoll:				; No collision with pinky
@@ -1031,8 +1077,13 @@ exit_check_ghost_coll:
 ; r0 = ptr to ghost pos
 ; r1 = ptr to ghost spawn
 ; r2 = ptr to ghost dir
+; r4 = ptr to ghost state
 eat_ghost:
 		PUSH {r4-r12, lr}
+
+		; Set ghost state to IN_BOX
+		mov r4, #IN_BOX
+		strb r4, [r3]
 
 		; Teleport ghost to its spawn
 		ldrb r4, [r1]		; r4 = spawn line
@@ -1321,21 +1372,25 @@ move_ghosts:
 		ldr r0, ptr_to_blinky_pos
 		ldr r1, ptr_to_blinky_dir
 		ldr r2, ptr_to_blinky_string
+		ldr r3, ptr_to_blinky_state
 		bl move_oneghost
 
 		ldr r0, ptr_to_clyde_pos
 		ldr r1, ptr_to_clyde_dir
 		ldr r2, ptr_to_clyde_string
+		ldr r3, ptr_to_clyde_state
 		bl move_oneghost
 
 		ldr r0, ptr_to_inky_pos
 		ldr r1, ptr_to_inky_dir
 		ldr r2, ptr_to_inky_string
+		ldr r3, ptr_to_inky_state
 		bl move_oneghost
 
 		ldr r0, ptr_to_pinky_pos
 		ldr r1, ptr_to_pinky_dir
 		ldr r2, ptr_to_pinky_string
+		ldr r3, ptr_to_pinky_state
 		bl move_oneghost
 
 		POP {r4-r12, lr}
@@ -1345,11 +1400,13 @@ move_ghosts:
 ; r0 = ghost pos address
 ; r1 = ghost dir address
 ; r2 = ghost string address
+; r3 = ghost state address
 move_oneghost:
 		PUSH {r4-r12, lr}
 
 		mov r4, r0		; r4 = ghost pos address
 		mov r10, r1		; r10 = ghost dir address
+		mov r11, r3		; r11 = ghost state address
 
 		ldrb r0, [r4]		; r0 = line pos
 		ldrb r1, [r4, #1]	; r1 = column pos
@@ -1414,6 +1471,7 @@ print_normal_ghost:
 
 		mov r0, r4				; move ghost pos pointer to r0
 		mov r1, r10				; move ghost dir pointer to r1
+		mov r2, r11				; move ghost state pointer to r2
 		bl ghost_choose_path	; determine ghost new direction based on current pos
 
 		POP {r4-r12, lr}
@@ -1421,7 +1479,9 @@ print_normal_ghost:
 
 
 ; choose ghost's new dir for next tick.
-; r0 = ghost pos pointer, r1 = ghost dir pointer
+; r0 = ghost pos pointer
+; r1 = ghost dir pointer
+; r2 = ghost state pointer
 ghost_choose_path:
 		PUSH {r4-r12, lr}
 
@@ -1433,6 +1493,71 @@ ghost_choose_path:
 		ldrsb r8, [r5]		; r8 = dir line
 		ldrsb r9, [r5, #1]	; r9 = dir col
 
+		ldrb r10, [r2]		; r10 = ghost state
+		cmp r10, #NORMAL	; if normal state, do normal pathing
+		beq ghost_normal_path
+
+		; is in box?
+		cmp r10, #IN_BOX
+		beq ghost_in_box
+
+		; leaving box
+		; move towards center
+		cmp r7, #14
+		blt ghost_go_abs_right
+		cmp r7, #15
+		bgt ghost_go_abs_left
+ghost_go_abs_up:
+		mov r8, #-1
+		mov r9, #0
+		; check if exited. gate is at line 14, so if ghost is at line 13, it exited box
+		cmp r6, #13
+		bgt ghost_go_forward	; If not exited, keep moving forward(up)
+		mov r0, #NORMAL			; If exited, set ghost state to normal pathing
+		strb r0, [r2]
+		b ghost_normal_path
+
+		;add r0, r6, r8
+		;add r1, r7, r9
+
+		; check wall logic. need separate because we need to ignore gate here
+		;sub r0, r0, #1		; minus 1 because putty coords start from 1
+		;sub r1, r1, #1
+		;mov r3, #BOARD_WIDTH
+		;mul r0, r0, r3		; Calculate tile position in memory
+		;add r0, r0, r1
+
+		;ldr r3, ptr_to_board_current
+		;ldrb r1, [r3, r0]	; Load tile
+		;mov r0, #LEAVING_BOX
+		;cmp r1, #0x23		; 0x23 = '#'
+		;it eq
+		;moveq r0, #NORMAL	; If hit wall, set ghost state to normal pathing
+		;strb r0, [r2]
+		;cmp r1, #0x23		; Another cmp for wall becuase we had to do strb
+		;beq ghost_normal_path
+		;b ghost_go_forward	; If not wall, keep moving forward(up)
+ghost_go_abs_right:
+		mov r8, #0
+		mov r9, #1
+		b ghost_go_forward
+ghost_go_abs_left:
+		mov r8, #0
+		mov r9, #-1
+		b ghost_go_forward
+
+ghost_in_box:
+		; check tile in front
+		add r0, r6, r8
+		add r1, r7, r9
+		bl ghost_check_wall
+		cmp r0, #0		; If not wall, go forward
+		bne ghost_go_forward
+		mov r1, #-1		; If wall, flip direction
+		mul r8, r8, r1
+		b ghost_go_forward
+
+ghost_normal_path:
 		mov r10, #0			; Initialize valid path count
 
 		; try forward
@@ -1538,6 +1663,9 @@ ghost_check_wall:
 		ldrb r1, [r2, r0]	; Load tile
 		mov r0, #1
 		cmp r1, #0x23		; 0x23 = '#'
+		it eq
+		moveq r0, #0
+		cmp r1, #0x2D		; 0x2D = '-' (spawn exit logic handled in ghost_choose_path)
 		it eq
 		moveq r0, #0
 
