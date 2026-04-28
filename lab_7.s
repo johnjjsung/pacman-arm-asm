@@ -323,8 +323,6 @@ game_start:
 		bl update_lives_led	; illuminate alice edubase leds
 
 		bl reset_board
-		;bl ready_set_go
-		;bl resume_game		; Game needs to be paused when drawing board, so resume after drawing
 
 lab7_main_loop:
 		ldr r0, ptr_to_is_game_over
@@ -381,7 +379,7 @@ full_reset:
 		movt r1, #0x003D
 		str r1, [r0]
 
-		;reset timer interval
+		; reset timer interval in memory
 		ldr r0, ptr_to_timer_interval
 		str r1, [r0]
 
@@ -423,15 +421,6 @@ full_reset:
 		ldr r0, ptr_to_game_over_behavior
 		mov r1, #0
 		strb r1, [r0]
-
-		;ldr r0, ptr_to_first_tick	; Set first tick flag to 1
-		;mov r1, #1
-		;strb r1, [r0]
-
-		; re-initialize and draw board
-		;bl init_board
-		;bl draw_board
-		;bl reset_board			; reset_board also initializes pacman and ghost positions
 
 		POP {lr}
 		MOV pc, lr
@@ -502,13 +491,6 @@ draw_board_exit:
 		ldr r0, ptr_to_score
 		ldr r0, [r0]
 		bl update_score		; Draw score
-		;mov r0, #2			; Pos for score on board
-		;mov r1, #12
-		;bl move_cursor
-		;ldr r0, ptr_to_black_bg
-		;bl output_string
-		;ldr r0, ptr_to_score_string
-		;bl output_string
 
 		POP {r4-r7, lr}
 		MOV pc, lr
@@ -1969,24 +1951,14 @@ next_level:
 ; r0, r1 = tile position to check
 ; return 0 if wall, otherwise 1 (so that i can just add return value in ghost_choose_path)
 ghost_check_wall:
-
 		PUSH {lr}
-		; check out of bounds just incase cause were checking for specific characters
-		cmp r0, #1
-		ble ghost_check_wall_is_wall
-		cmp r0, #33
-		bge ghost_check_wall_is_wall
-		cmp r1, #1
-		ble ghost_check_wall_is_wall
-		cmp r1, #28
-		bge ghost_check_wall_is_wall
-		sub r0, r0, #1
+		sub r0, r0, #1			; Subtract 1 because putty coords start from 1
 		sub r1, r1, #1
 		mov r2, #BOARD_WIDTH
-		mul r0, r0, r2
+		mul r0, r0, r2			; calculate offset in memory
 		add r0, r0, r1
 		ldr r2, ptr_to_board_current
-		ldrb r1, [r2, r0]
+		ldrb r1, [r2, r0]		; load tile
 		mov r0, #1
 		cmp r1, #0x23		; '#'
 		beq ghost_check_wall_is_wall
@@ -1995,7 +1967,6 @@ ghost_check_wall:
 		b ghost_check_wall_exit
 
 ghost_check_wall_is_wall:
-
 		mov r0, #0
 
 ghost_check_wall_exit:
