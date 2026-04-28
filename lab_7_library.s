@@ -166,7 +166,7 @@ gpio_btn_and_LED_init:
     MOV  pc, lr                    ; Return to caller
 
 output_character:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r5,lr}	; Spill registers to stack
 
           ; Your code is placed here
     MOV r4, #0xC000		; Initialize r1 to base data address
@@ -181,12 +181,12 @@ output_loop:	; Wait while TxFF in flag register is 1
 
 	STRB r0, [r4]		; Store value in r0 to the data register
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r5,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 
 read_character:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r5,lr}	; Spill registers to stack
 
           ; Your code is placed here
     MOV r4, #0xC000		; Initialize r1 to base data address
@@ -201,11 +201,11 @@ read_char_loop:		; Wait while RxFE in flag register is 1
 
 	LDRB r0, [r4]		; Load value entered via putty to r0
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r5,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 read_string:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r5,lr}	; Spill registers to stack
 
           ; Your code is placed here
     MOV r4, r0		; Initialize cursor
@@ -254,11 +254,11 @@ input_enter:
 	MOV r0, #0
 	STRB r0, [r4]
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r5,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 output_string:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r6,lr}	; Spill registers to stack
 
           ; Your code is placed here
     MOV r4, r0		; Initialize cursor
@@ -285,11 +285,11 @@ not_ansi:
 	CMP r0, #0		; Is character a null terminator?
 	BNE output_str_loop
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r6,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 output_ansi_string:
-	PUSH {r4-r12, lr}
+	PUSH {r4, lr}
 
 	mov r4, r0		; Initialize cursor
 ansi_loop:
@@ -300,11 +300,11 @@ ansi_loop:
 	b ansi_loop
 exit_output_ansi_string:
 
-	POP {r4-r12, lr}
+	POP {r4, lr}
 	MOV pc, lr
 
 read_from_push_btns:
-    PUSH {r4-r12, lr}
+    PUSH {r4-r5, lr}
 
     MOV  r4, #0x73FC           ; Load low 16 bits
     MOVT r4, #0x4000           ; Load upper 16 bits
@@ -317,11 +317,11 @@ read_from_push_btns:
 
     MOV  r0, r5                ; Move final 4-bit button value into r0
 
-    POP  {r4-r12, lr}
+    POP  {r4-r5, lr}
     MOV  pc, lr
 
 illuminate_LEDs:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r5,lr}	; Spill registers to stack
           ; Your code is placed here
     MOV r4, #0x53FC		; Initialize pointer to port B
     MOVT r4, #0x4000
@@ -331,11 +331,11 @@ illuminate_LEDs:
     ORR r5, r5, r0		; Apply new LED bits
 	STRB r5, [r4]		; Store value to port B
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r5,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 illuminate_RGB_LED:
-	PUSH {r4-r12, lr}            ; Save registers
+	PUSH {r4-r5, lr}            ; Save registers
 
     AND  r0, r0, #0x07           ; Keep only RGB bits (0-2)
     LSL  r0, r0, #1              ; Shift into PF1-3 positions
@@ -348,11 +348,11 @@ illuminate_RGB_LED:
     ORR  r5, r5, r0              ; Apply new LED bits
     STRB r5, [r4]                ; Write new value to hardware
 
-    POP  {r4-r12, lr}            ; Restore registers
+    POP  {r4-r5, lr}            ; Restore registers
     MOV  pc, lr                  ; Return to caller
 
 read_tiva_push_button:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r5,lr}	; Spill registers to stack
 
           ; Your code is placed here
     MOV r4, #0x53FC		; Initialize pointer to Port F data
@@ -365,12 +365,12 @@ read_tiva_push_button:
 
     MOV r0, r5		; Return result in r0
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r5,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 
 str2int:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r7,lr}	; Spill registers to stack
 
           ; Your code is placed here
     mov r4, r0          ; initialize pointer
@@ -418,11 +418,11 @@ str2int_return:
 
 	MOV r0, r5 ; move into r0
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r7,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 int2str:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r8,lr}	; Spill registers to stack
 
           ; Your code is placed here
     mov r4, r0 ; initialize the output pointer
@@ -496,11 +496,11 @@ end_null:
 
 finish:
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r8,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 unsigned_division:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4,lr}	; Spill registers to stack
 
           ; Your code is placed here
 	MOV r4, #15             ; Initialize counter to 15
@@ -529,11 +529,11 @@ udiv_continue:
 stop_unsigned_division:
 	MOV r0, r3              ; Returns quotient in r0
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 signed_division:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {r4-r6,lr}	; Spill registers to stack
 
           ; Your code is placed here
 	MOV r5, r1              ; Create copy of dividend
@@ -572,11 +572,11 @@ divisor_pos:
 stop_signed_division:           ; Stop signed division. Quotient is
                                                         ; already in r0 from unsigned division.
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {r4-r6,lr}  	; Restore registers from stack
 	MOV pc, lr
 
 mod:
-	PUSH {r4-r12,lr}	; Spill registers to stack
+	PUSH {lr}	; Spill registers to stack
 
           ; Your code is placed here
     ; Your code for the mod routine goes here.
@@ -584,19 +584,19 @@ mod:
 	MOV r0, r2              ; Remainder is already stored in r2 from
 							; unsigned division.
 
-	POP {r4-r12,lr}  	; Restore registers from stack
+	POP {lr}  	; Restore registers from stack
 	MOV pc, lr
 
 
 line_break:
-	PUSH {r4-r12,lr}
+	PUSH {lr}
 
 	MOV r0, #13		; Carriage return
 	BL output_character
 	MOV r0, #10		; New line
 	BL output_character
 
-	POP {r4-r12,lr}
+	POP {lr}
 	MOV pc, lr
 
 
@@ -758,13 +758,13 @@ wait_timer_clock:
 
 
 simple_read_character:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		mov  r1, #0xC000	; Simply load what is in UART data register and return to r0
 		movt r1, #0x4000
 		ldrb r0, [r1]
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 

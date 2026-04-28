@@ -305,7 +305,7 @@ LEAVING_BOX:	.equ 2
 
 
 lab7:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		; Initialization
 		bl uart_init
@@ -360,13 +360,13 @@ game_over_loop:						; Loop to wait for user input
 		b game_over_loop
 
 lab7_exit:
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 ; Resets variables and re-initializes board
 full_reset:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r0, ptr_to_wall_string	; So that ansi is reset to black bg
 		bl output_string
@@ -433,13 +433,13 @@ full_reset:
 		;bl draw_board
 		;bl reset_board			; reset_board also initializes pacman and ghost positions
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 ; Initializes real time board with board_init data
 init_board:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r0, ptr_to_board_initial	; Initialize pointers
 		ldr r1, ptr_to_board_current
@@ -451,13 +451,13 @@ init_board_loop:
 		b init_board_loop
 init_board_exit:
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 ; Draw entire board
 draw_board:
-		PUSH {r4-r12, lr}
+		PUSH {r4-r7, lr}
 
 		ldr r4, ptr_to_board_current
 		mov r5, #1		; line pos
@@ -510,7 +510,7 @@ draw_board_exit:
 		;ldr r0, ptr_to_score_string
 		;bl output_string
 
-		POP {r4-r12, lr}
+		POP {r4-r7, lr}
 		MOV pc, lr
 
 
@@ -518,7 +518,7 @@ draw_board_exit:
 ; r0 = line pos
 ; r1 = column pos
 draw_tile:
-		PUSH {r4-r12, lr}
+		PUSH {r4-r6, lr}
 
 		mov r5, r0			; preserve pos to use for move_cursor
 		mov r6, r1
@@ -564,34 +564,34 @@ draw_tile_gate:
 		bl output_string
 draw_tile_exit:
 
-		POP {r4-r12, lr}
+		POP {r4-r6, lr}
 		MOV pc, lr
 
 
 pause_game:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r0, ptr_to_game_paused
 		mov r1, #1
 		strb r1, [r0]
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 resume_game:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r0, ptr_to_game_paused
 		mov r1, #0
 		strb r1, [r0]
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 Timer_Handler:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		mov  r0, #0x0024		; Clear the interrupt pin
 		movt r0, #0x4003
@@ -642,12 +642,12 @@ Timer_Handler:
 
 timer_handler_exit:
 
-		POP {r4-r12, lr}
+		POP {lr}
 		BX lr
 
 
 UART0_Handler:
-        PUSH    {r4-r12, lr}
+        PUSH    {lr}
 
         ; clear UART receive interrupt by writing bit 4 to UARTICR
         MOV     r0, #0xC044                          ; UARTICR address
@@ -711,12 +711,12 @@ not_wasd:
 		strb r1, [r0]
 
 UART0_Handler_exit:
-        POP     {r4-r12, lr}
+        POP     {lr}
         BX      lr
 
 
 Switch_Handler:
-		PUSH    {r4-r12, lr}
+		PUSH    {lr}
 
 		; clear PF4 interrupt
 		mov  r0, #0x541C
@@ -750,13 +750,13 @@ switch_pause:
 		bl pause_game
 switch_done:
 
-		POP     {r4-r12, lr}
+		POP     {lr}
 		BX      lr
 
 
 ; Moves cursor to position (line, column) where line=r0, column=r1.
 move_cursor:
-		PUSH {r4-r12, lr}
+		PUSH {r4-r5, lr}
 
 		mov r4, r0		; Preserve line and column
 		mov r5, r1		; r4=line, r5=column
@@ -784,7 +784,7 @@ move_cursor:
 		ldr r0, ptr_to_cursor_pos
 		bl output_string	; Move cursor to position stored in memory
 
-		POP {r4-r12, lr}
+		POP {r4-r5, lr}
 		MOV pc, lr
 
 
@@ -804,7 +804,7 @@ find_null_loop:
 
 
 move_pacman:
-        PUSH {r4-r12, lr}
+        PUSH {r4-r9, lr}
 
         ; Load pacman position
         ldr r2, ptr_to_pacman_pos
@@ -877,10 +877,10 @@ pacman_store_pos:
         bl check_pellet
 
 move_pacman_exit:
-        POP {r4-r12, lr}
+        POP {r4-r9, lr}
         MOV pc, lr
 check_wall:
-        PUSH {r4-r12, lr}
+        PUSH {lr}
 
         ; r0 = line, r1 = column
         ; returns r0 = 1 if wall '#'
@@ -921,13 +921,13 @@ check_wall_is_wall:
         mov r0, #1            ; wall
 
 check_wall_exit:
-        POP {r4-r12, lr}
+        POP {lr}
         MOV pc, lr
 
 
 ; Checks if pacman's position is on a pellet then updates game state
 check_pellet:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r0, ptr_to_pacman_pos	; Load pacman position
 		ldrb r1, [r0]				; r5 = line
@@ -983,14 +983,14 @@ check_pellet_done:
 
 check_pellet_exit:
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 ; Updates score string in memory to given score
 ; r0 = new score
 update_score:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 		mov  r1, #0x423F			; 0xF423F = 999999
 		movt r1, #0x000F
 		cmp r0, r1					; If score greater than 999999, set score to 999999(max score)
@@ -1040,12 +1040,12 @@ update_score_done:
 		ldr r0, ptr_to_score_string	; print score
 		bl output_string
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 update_power_pellet:
-		PUSH {r4-r12, lr}
+		PUSH {r4, lr}
 
 		; Power pellet time update
 		ldr r0, ptr_to_power_pellet_time	; Load remaining power pellet time
@@ -1118,13 +1118,13 @@ skip_blink:
 		strb r1, [r0]
 
 update_power_pellet_exit:
-		POP {r4-r12, lr}
+		POP {r4, lr}
 		MOV pc, lr
 
 
 ; Need to erase pacman and ghosts before moving to prevent overwriting ghost or pacman
 erase_entities:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r2, ptr_to_pacman_pos	; Erase pacman
 		ldrb r0, [r2]
@@ -1152,14 +1152,14 @@ erase_entities:
 		ldrb r1, [r2, #1]		; r1 = col pos
 		bl draw_tile			; erase ghost at pos
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 ; Checks if pacman collided with a ghost.
 ; r0 = pacman line pos, r1 = pacman column pos
 check_ghost_coll:
-		PUSH {r4-r12, lr}
+		PUSH {r4-r6, lr}
 
 		ldr r6, ptr_to_pacman_pos
 		ldrb r4, [r6]		; r4 = pacman line pos
@@ -1243,7 +1243,7 @@ normal_ghost_coll:			; Power pellet isn't active
 		bl pacman_dead
 exit_check_ghost_coll:
 
-		POP {r4-r12, lr}
+		POP {r4-r6, lr}
 		MOV pc, lr
 
 
@@ -1251,14 +1251,16 @@ exit_check_ghost_coll:
 ; r0 = ptr to ghost pos
 ; r1 = ptr to ghost spawn
 ; r2 = ptr to ghost dir
+; r3 = ptr to ghost state
 eat_ghost:
-		PUSH {r4-r12, lr}
+		PUSH {r4-r9, lr}
 		; erase ghost before teleporting
 		ldrb r4, [r0]		; r4 = pos line
 		ldrb r5, [r0, #1]	; r5 = pos col
 		mov r6, r0			; Need to save r0-r2 because of draw_tile
 		mov r7, r1
 		mov r8, r2
+		mov r9, r3
 
 		mov r0, r4			; Draw tile at ghost pos(erase ghost)
 		mov r1, r5
@@ -1267,6 +1269,7 @@ eat_ghost:
 		mov r0, r6			; restore r0-r2
 		mov r1, r7
 		mov r2, r8
+		mov r3, r9
 
 		; Set ghost state to IN_BOX
 		mov r4, #IN_BOX
@@ -1298,12 +1301,12 @@ eat_ghost:
 		add r0, r0, r2			; Update and store new score
 		bl update_score
 
-		POP {r4-r12, lr}
+		POP {r4-r9, lr}
 		MOV pc, lr
 
 
 pacman_dead:
-		PUSH {r4-r12, lr}
+		PUSH {r4-r6, lr}
 
 		; Decrement lives
 		ldr r4, ptr_to_lives
@@ -1357,12 +1360,12 @@ set_game_over:
 		bl output_string
 exit_pacman_dead:
 
-		POP {r4-r12, lr}
+		POP {r4-r6, lr}
 		MOV pc, lr
 
 
 update_lives_led:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r0, ptr_to_lives
 		ldrb r1, [r0]		; r1 = lives
@@ -1384,12 +1387,12 @@ update_lives_led:
 
 		bl illuminate_LEDs	; illuminate leds with pattern in r0
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 reset_board:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		bl pause_game
 		bl erase_entities
@@ -1513,13 +1516,13 @@ reset_board:
 		bl ready_set_go
 		bl resume_game
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
 ; Prints "READY!", then after a short delay erases it
 ready_set_go:
-		PUSH {r4-r12, lr}
+		PUSH {r4, lr}
 
 		mov r0, #21		; position for ready string
 		mov r1, #12
@@ -1543,13 +1546,13 @@ ready_done:
 		ldr r0, ptr_to_clear_string		; Erases ready
 		bl output_string
 
-		POP {r4-r12, lr}
+		POP {r4, lr}
 		MOV pc, lr
 
 
 ; draw pacman and ghosts. To be used after resets so doesn't account for power pellet effect
 draw_entities:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r2, ptr_to_pacman_pos
 		ldrb r0, [r2]
@@ -1596,7 +1599,7 @@ draw_entities:
 		ldr r0, ptr_to_pinky_string
 		bl output_string
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 ; Checks if pacman needs to wrap-around map
@@ -1622,7 +1625,7 @@ exit_pacman_wrap:
 
 
 move_ghosts:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		ldr r0, ptr_to_blinky_pos
 		ldr r1, ptr_to_blinky_dir
@@ -1648,7 +1651,7 @@ move_ghosts:
 		ldr r3, ptr_to_pinky_state
 		bl move_oneghost
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
@@ -1771,27 +1774,6 @@ ghost_go_abs_up:
 		mov r0, #NORMAL			; If exited, set ghost state to normal pathing
 		strb r0, [r2]
 		b ghost_normal_path
-
-		;add r0, r6, r8
-		;add r1, r7, r9
-
-		; check wall logic. need separate because we need to ignore gate here
-		;sub r0, r0, #1		; minus 1 because putty coords start from 1
-		;sub r1, r1, #1
-		;mov r3, #BOARD_WIDTH
-		;mul r0, r0, r3		; Calculate tile position in memory
-		;add r0, r0, r1
-
-		;ldr r3, ptr_to_board_current
-		;ldrb r1, [r3, r0]	; Load tile
-		;mov r0, #LEAVING_BOX
-		;cmp r1, #0x23		; 0x23 = '#'
-		;it eq
-		;moveq r0, #NORMAL	; If hit wall, set ghost state to normal pathing
-		;strb r0, [r2]
-		;cmp r1, #0x23		; Another cmp for wall becuase we had to do strb
-		;beq ghost_normal_path
-		;b ghost_go_forward	; If not wall, keep moving forward(up)
 ghost_go_abs_right:
 		mov r8, #0
 		mov r9, #1
@@ -1904,7 +1886,7 @@ ghost_choose_path_exit:
 
 
 check_level_complete:
-		PUSH {r4-r12, lr}
+		PUSH {r4-r5, lr}
 
 		ldr r4, ptr_to_board_current ; put current board pointer into r4 and enter loop
 
@@ -1922,20 +1904,20 @@ check_level_loop:
 		b check_level_loop
 
 level_not_complete:
-		POP {r4-r12, lr}  ; go back
+		POP {r4-r5, lr}  ; go back
 		MOV pc, lr
 
 level_is_complete:
 		bl next_level    ; brach to the next level adjuster
 
-		POP {r4-r12, lr}
+		POP {r4-r5, lr}
 		MOV pc, lr
 
 
 
 
 next_level:
-		PUSH {r4-r12, lr}
+		PUSH {lr}
 
 		bl pause_game ; pause the game so can redraw
 
@@ -1979,7 +1961,7 @@ next_level:
 		bl draw_board
 		bl reset_board
 
-		POP {r4-r12, lr}
+		POP {lr}
 		MOV pc, lr
 
 
@@ -1991,13 +1973,13 @@ ghost_check_wall:
 		PUSH {lr}
 		; check out of bounds just incase cause were checking for specific characters
 		cmp r0, #1
-		blt ghost_check_wall_is_wall
+		ble ghost_check_wall_is_wall
 		cmp r0, #33
-		bgt ghost_check_wall_is_wall
+		bge ghost_check_wall_is_wall
 		cmp r1, #1
-		blt ghost_check_wall_is_wall
+		ble ghost_check_wall_is_wall
 		cmp r1, #28
-		bgt ghost_check_wall_is_wall
+		bge ghost_check_wall_is_wall
 		sub r0, r0, #1
 		sub r1, r1, #1
 		mov r2, #BOARD_WIDTH
