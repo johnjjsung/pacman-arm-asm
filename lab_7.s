@@ -1183,9 +1183,22 @@ exit_check_ghost_coll:
 ; r0 = ptr to ghost pos
 ; r1 = ptr to ghost spawn
 ; r2 = ptr to ghost dir
-; r4 = ptr to ghost state
 eat_ghost:
 		PUSH {r4-r12, lr}
+		; erase ghost before teleporting
+		ldrb r4, [r0]		; r4 = pos line
+		ldrb r5, [r0, #1]	; r5 = pos col
+		mov r6, r0			; Need to save r0-r2 because of draw_tile
+		mov r7, r1
+		mov r8, r2
+
+		mov r0, r4			; Draw tile at ghost pos(erase ghost)
+		mov r1, r5
+		bl draw_tile
+
+		mov r0, r6			; restore r0-r2
+		mov r1, r7
+		mov r2, r8
 
 		; Set ghost state to IN_BOX
 		mov r4, #IN_BOX
