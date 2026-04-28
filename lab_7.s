@@ -96,7 +96,7 @@ clyde_spawn:		.byte 18, 12
 inky_spawn:			.byte 16, 16
 pinky_spawn:		.byte 18, 17
 
-
+level:              .byte 1
 lives:				.byte 4
 is_game_over:		.byte 0
 game_paused:		.byte 1
@@ -282,6 +282,8 @@ ptr_to_ghost_turn_choices:	.word ghost_turn_choices
 
 ptr_to_game_over_behavior:	.word game_over_behavior
 
+ptr_to_level:			    .word level
+
 ; Offset used for indexing in lookup table
 BOLD:		.equ 0x10
 YELLOW:		.equ 0x11
@@ -379,6 +381,29 @@ full_reset:
 		movt r1, #0x003D
 		str r1, [r0]
 
+		;reset timer interval
+		ldr r0, ptr_to_timer_interval
+		str r1, [r0]
+
+		;reset the level back to 1
+		ldr r0, ptr_to_level
+		mov r1, #1
+		strb r1, [r0]
+
+		;reset power pellet
+		ldr r0, ptr_to_power_pellet_time
+		mov r1, #0
+		strb r1, [r0]
+
+		ldr r0, ptr_to_tick_count
+		strb r1, [r0]
+
+		ldr r0, ptr_to_ghosts_eaten
+		strb r1, [r0]
+
+		mov r0, #0
+		bl illuminate_RGB_LED
+
 		; init lives
 		ldr r0, ptr_to_lives
 		mov r1, #4
@@ -474,7 +499,8 @@ draw_board_cursor_update:	; Increment col, line counter
 		bge draw_board_exit
 		b draw_board_line_loop
 draw_board_exit:
-		mov r0, #0
+		ldr r0, ptr_to_score
+		ldr r0, [r0]
 		bl update_score		; Draw score
 		;mov r0, #2			; Pos for score on board
 		;mov r1, #12
@@ -853,6 +879,10 @@ check_wall:
         cmp r0, #0x23        ; '#'
         beq check_wall_is_wall
 
+        ; also check if gate
+        cmp r0, #0x2D        ; '-'
+        beq check_wall_is_wall
+
         mov r0, #0            ; not wall
         b check_wall_exit
 
@@ -894,7 +924,8 @@ eat_normal_pellet:
 		ldr r1, [r0]
 		add r0, r1, #10				; Update score
 		bl update_score
-		b check_pellet_exit
+		b check_pellet_done
+
 eat_power_pellet:
 		mov r2, #0x20				; 0x20 = ' '
 		strb r2, [r0, r1]			; Store space to pellet pos
@@ -913,6 +944,12 @@ eat_power_pellet:
 
 		ldr r0, ptr_to_ghosts_eaten			; Initialize ghosts eaten count to 0
 		strb r1, [r0]
+		b check_pellet_done
+
+check_pellet_done:
+		bl check_level_complete
+		b check_pellet_exit
+
 check_pellet_exit:
 
 		POP {r4-r12, lr}
@@ -1827,6 +1864,87 @@ ghost_choose_path_exit:
 
 		POP {r4-r12, lr}
 		MOV pc, lr
+
+
+check_level_complete:
+		PUSH {r4-r12, lr}
+
+		ldr r4, ptr_to_board_current ; put current board pointer into r4 and enter loop
+
+check_level_loop:
+		ldrb r5, [r4], #1 ; load the string
+		cmp r5, #0			; if null terminator then its complete and switch
+		beq level_is_complete
+
+		cmp r5, #0x2E		; check for a pellet and if theres one its not complete
+		beq level_not_complete
+
+		cmp r5, #0x4F		; check fro a power pellet and if theres one its not complete
+		beq level_not_complete
+
+		b check_level_loop
+
+level_not_complete:
+		POP {r4-r12, lr}  ; go back
+		MOV pc, lr
+
+level_is_complete:
+		bl next_level    ; brach to the next level adjuster
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+
+
+next_level:
+		PUSH {r4-r12, lr}
+
+		bl pause_game ; pause the game so can redraw
+
+		; increase level count
+		ldr r0, ptr_to_level
+		ldrb r1, [r0]
+		add r1, r1, #1
+		strb r1, [r0]
+
+		; speed up timer by 0.01 sec
+		; 0.01 sec at 16 MHz = 160,000 cycles = 0x27100
+		mov  r2, #0x7100
+		movt r2, #0x0002
+
+		ldr r0, ptr_to_timer_interval
+		ldr r1, [r0]
+		sub r1, r1, r2
+		str r1, [r0]
+
+		; write new interval
+		mov  r0, #0x0028
+		movt r0, #0x4003
+		str r1, [r0]
+
+		; reset power pellets on next level so doesnt carry over
+		ldr r0, ptr_to_power_pellet_time
+        mov r1, #0
+        strb r1, [r0]
+
+        ldr r0, ptr_to_tick_count
+        strb r1, [r0]
+
+        ldr r0, ptr_to_ghosts_eaten
+        strb r1, [r0]
+
+        mov r0, #0
+        bl illuminate_RGB_LED
+
+		; reset board pellets
+		bl init_board
+		bl draw_board
+		bl reset_board
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
 
 
 ; r0, r1 = tile position to check
