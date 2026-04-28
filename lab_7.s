@@ -200,6 +200,7 @@ board_current:
 	.global illuminate_RGB_LED
 	.global unsigned_division
 	.global mod
+	.global illuminate_LEDs
 
 	.global Timer_Handler
 	.global UART0_Handler
@@ -304,6 +305,8 @@ lab7:
 		bl init_board
 		bl draw_board
 		bl draw_entities
+
+		bl update_lives_led	; illuminate alice edubase leds
 
 		bl ready_set_go
 		bl resume_game		; Game needs to be paused when drawing board, so resume after drawing
@@ -1124,6 +1127,8 @@ pacman_dead:
 		sub r5, r5, #1
 		strb r5, [r4]
 
+		bl update_lives_led		; Update edubase leds
+
 		; If lives = 0, set game over flag. Otherwise reset board
 		cmp r5, #0
 		beq set_game_over
@@ -1140,6 +1145,33 @@ set_game_over:
 		ldr r4, ptr_to_is_game_over
 		strb r6, [r4]
 exit_pacman_dead:
+
+		POP {r4-r12, lr}
+		MOV pc, lr
+
+
+update_lives_led:
+		PUSH {r4-r12, lr}
+
+		ldr r0, ptr_to_lives
+		ldrb r1, [r0]		; r1 = lives
+
+		mov r0, #0xF		; Default: illuminate all leds
+
+		cmp r1, #0
+		it eq
+		moveq r0, #0x0		; 0 leds
+		cmp r1, #1
+		it eq
+		moveq r0, #0x1		; 1 leds
+		cmp r1, #2
+		it eq
+		moveq r0, #0x3		; 2 leds
+		cmp r1, #3
+		it eq
+		moveq r0, #0x7		; 3 leds
+
+		bl illuminate_LEDs	; illuminate leds with pattern in r0
 
 		POP {r4-r12, lr}
 		MOV pc, lr
