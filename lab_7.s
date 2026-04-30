@@ -613,13 +613,13 @@ Timer_Handler:
 
 
 		;;;;;;;;;; Output lives count. For debugging
-		mov r0, #35
-		mov r1, #1
-		bl move_cursor
-		ldr r0, ptr_to_lives
-		ldrb r1, [r0]
-		add r0, r1, #48
-		bl output_character
+		;mov r0, #35
+		;mov r1, #1
+		;bl move_cursor
+		;ldr r0, ptr_to_lives
+		;ldrb r1, [r0]
+		;add r0, r1, #48
+		;bl output_character
 		;;;;;;;;;;
 
 timer_handler_exit:
@@ -861,6 +861,8 @@ pacman_store_pos:
 move_pacman_exit:
         POP {r4-r9, lr}
         MOV pc, lr
+
+
 check_wall:
         PUSH {lr}
 
@@ -1382,38 +1384,6 @@ reset_board:
 		ldr r0, ptr_to_first_tick	; Set first tick flag to 1
 		mov r1, #1
 		strb r1, [r0]
-
-		; need to restore tiles first
-		ldr r0, ptr_to_pacman_spawn
-		ldr r1, ptr_to_pacman_pos
-		ldrb r0, [r1]
-		ldrb r1, [r1, #1]
-		bl draw_tile
-
-		ldr r0, ptr_to_blinky_spawn
-		ldr r1, ptr_to_blinky_pos
-		ldrb r0, [r1]
-		ldrb r1, [r1, #1]
-		bl draw_tile
-
-		ldr r0, ptr_to_clyde_spawn
-		ldr r1, ptr_to_clyde_pos
-		ldrb r0, [r1]
-		ldrb r1, [r1, #1]
-		bl draw_tile
-
-		ldr r0, ptr_to_inky_spawn
-		ldr r1, ptr_to_inky_pos
-		ldrb r0, [r1]
-		ldrb r1, [r1, #1]
-		bl draw_tile
-
-		ldr r0, ptr_to_pinky_spawn
-		ldr r1, ptr_to_pinky_pos
-		ldrb r0, [r1]
-		ldrb r1, [r1, #1]
-		bl draw_tile
-
 
 		; return all entities to their spawnpoint
 		ldr r0, ptr_to_pacman_spawn
